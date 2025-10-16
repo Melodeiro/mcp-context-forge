@@ -110,7 +110,7 @@ services:
       start_period: 30s
 
     volumes:
-    './plugins-config.yaml:/app/plugins/config.yaml'
+      - './plugins-config.yaml:/app/plugins/config.yaml'
     #   - ./mcp-catalog.yml:/app/mcp-catalog.yml:ro # mount catalog configuration
     #   - ./certs:/app/certs:ro   # mount certs folder read-only (includes both SSL and JWT keys)
     #
