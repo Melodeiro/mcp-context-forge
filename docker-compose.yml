@@ -24,15 +24,13 @@ services:
   # MCP Gateway - the main API server for the MCP stack
   # ──────────────────────────────────────────────────────────────────────
   gateway:
-    image: ${IMAGE_LOCAL:-mcpgateway/mcpgateway:latest} # Use the local latest image. Run `make docker-prod` to build it.
+    #image: ghcr.io/ibm/mcp-context-forge:0.8.0 # Use the local latest image. Run `make docker-prod` to build it.
     #image: ghcr.io/ibm/mcp-context-forge:0.8.0 # Use the release MCP Context Forge image
     #image: ghcr.io/ibm/mcp-context-forge:0.7.0 # Testing migration from 0.7.0
     build:
       context: .
       dockerfile: Containerfile     # Same one the Makefile builds
     restart: unless-stopped
-    ports:
-      - "4444:4444"                 # HTTP (or HTTPS if SSL=true is set)
     networks: [mcpnet]
 
     # ──────────────────────────────────────────────────────────────────────
@@ -41,7 +39,7 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=4444
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:-mysecretpassword}@postgres:5432/mcp
+      - DATABASE_URL=postgresql://postgres:${SERVICE_PASSWORD_64_POSTGRES}@postgres:5432/mcp
       # - DATABASE_URL=mysql+pymysql://mysql:${MYSQL_PASSWORD:-changeme}@mariadb:3306/mcp
       # - DATABASE_URL=mysql+pymysql://admin:${MARIADB_PASSWORD:-changeme}@mariadb:3306/mcp
       # - DATABASE_URL=mongodb://admin:${MONGO_PASSWORD:-changeme}@mongodb:27017/mcp
@@ -49,8 +47,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       # JWT Configuration - Choose ONE approach:
       # Option 1: HMAC (Default - Simple deployments)
-      - JWT_ALGORITHM=HS256
-      - JWT_SECRET_KEY=my-test-key
+      - JWT_ALGORITHM=HS512
+      - JWT_SECRET_KEY=${SERVICE_HEX_128_GATEWAY}
       # Option 2: RSA (Production - Asymmetric, uncomment and generate certs)
       # - JWT_ALGORITHM=RS256
       # - JWT_PUBLIC_KEY_PATH=/app/certs/jwt/public.pem
@@ -58,8 +56,11 @@ services:
       - JWT_AUDIENCE=mcpgateway-api
       - JWT_ISSUER=mcpgateway
       - EMAIL_AUTH_ENABLED=true
-      - PLATFORM_ADMIN_EMAIL=admin@example.com
-      - PLATFORM_ADMIN_PASSWORD=changeme
+      - AUTH_ENCRYPTION_SECRET=${SERVICE_PASSWORDWITHSYMBOLS_64}
+      - BASIC_AUTH_USER=${PLATFORM_ADMIN_EMAIL:?}
+      - BASIC_AUTH_PASSWORD=${SERVICE_PASSWORDWITHSYMBOLS_64_GATEWAY}
+      - PLATFORM_ADMIN_EMAIL=${PLATFORM_ADMIN_EMAIL:?}
+      - PLATFORM_ADMIN_PASSWORD=${SERVICE_PASSWORDWITHSYMBOLS_64_GATEWAY}
       - REQUIRE_TOKEN_EXPIRATION=false
       - MCPGATEWAY_UI_ENABLED=true
       - MCPGATEWAY_ADMIN_API_ENABLED=true
@@ -67,14 +68,22 @@ services:
       - ENVIRONMENT=development
       - SECURITY_HEADERS_ENABLED=true
       - CORS_ALLOW_CREDENTIALS=true
+      - SECURE_COOKIES=${SECURE_COOKIES:-true}
       # - SSL=true
       # - CERT_FILE=/app/certs/cert.pem
       # - KEY_FILE=/app/certs/key.pem
       # Uncomment to enable plugins
-      # - PLUGINS_ENABLED=true
+      - PLUGINS_ENABLED=true
       # Uncomment to enable catalog
-      # - MCPGATEWAY_CATALOG_ENABLED=true
-      # - MCPGATEWAY_CATALOG_FILE=/app/mcp-catalog.yml
+      - MCPGATEWAY_CATALOG_ENABLED=true
+      - MCPGATEWAY_CATALOG_FILE=/app/mcp-catalog.yml
+      # Authentication configuration
+      - AUTH_REQUIRED=true
+      - MCP_CLIENT_AUTH_ENABLED=true
+      - TRUST_PROXY_AUTH=false
+      # Logging configuration
+      - LOG_LEVEL=ERROR  # Default to ERROR for production performance
+      - DISABLE_ACCESS_LOG=true  # Disable uvicorn access logs for performance (massive I/O overhead)
 
       # Phoenix Observability Integration (uncomment when using Phoenix)
       # - PHOENIX_ENDPOINT=${PHOENIX_ENDPOINT:-http://phoenix:6006}
@@ -114,10 +123,10 @@ services:
 ###############################################################################
 
   postgres:              # Official image - easy defaults
-    image: postgres:17
+    image: postgres:18
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=mysecretpassword
+      - POSTGRES_PASSWORD=${SERVICE_PASSWORD_64_POSTGRES}
       - POSTGRES_DB=mcp
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -185,26 +194,22 @@ services:
 ###############################################################################
   redis:
     image: redis:latest
-    ports:
-      - "6379:6379"      # expose only if you want host access
     networks: [mcpnet]
 
 ###############################################################################
 #  OPTIONAL ADMIN TOOLS - handy web UIs for DB & cache (disabled by default)
 ###############################################################################
-  pgadmin:              # 🔧 Postgres admin UI
-    image: dpage/pgadmin4:latest
-    environment:
-      - PGADMIN_DEFAULT_EMAIL=admin@example.com
-      - PGADMIN_DEFAULT_PASSWORD=changeme
-    ports:
-      - "5050:80"      # http://localhost:5050
-    volumes:
-      - pgadmindata:/var/lib/pgadmin
-    networks: [mcpnet]
-    depends_on:
-      postgres:
-        condition: service_healthy
+  # pgadmin:              # 🔧 Postgres admin UI
+  #   image: dpage/pgadmin4:latest
+  #   environment:
+  #     - PGADMIN_DEFAULT_EMAIL=${PGADMIN_DEFAULT_EMAIL:?}
+  #     - PGADMIN_DEFAULT_PASSWORD=${SERVICE_PASSWORD_64_PGADMIN}
+  #   volumes:
+  #     - pgadmindata:/var/lib/pgadmin
+  #   networks: [mcpnet]
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
 
   # ──────────────────────────────────────────────────────────────────────
   # Redis Insight - a powerful Redis GUI (recently updated)
@@ -214,8 +219,6 @@ services:
     container_name: redisinsight
     restart: unless-stopped
     networks: [mcpnet]
-    ports:
-      - "5540:5540"                 # Redis Insight UI (default 5540)
     depends_on:          # Default stack: Postgres + Redis
       redis:
         condition: service_started
@@ -349,15 +352,13 @@ services:
     image: ghcr.io/ibm/fast-time-server:latest
     restart: unless-stopped
     networks: [mcpnet]
-    ports:
-      - "8888:8080"    # Map host port 8888 to container port 8080
     command: ["-transport=sse", "-listen=0.0.0.0", "-port=8080", "-log-level=info"]
 
   ###############################################################################
   # Auto-registration service - registers fast_time_server with gateway
   ###############################################################################
   register_fast_time:
-    image: ${IMAGE_LOCAL:-mcpgateway/mcpgateway:latest}
+    image: ghcr.io/ibm/mcp-context-forge:0.8.0
     networks: [mcpnet]
     depends_on:
       gateway:
@@ -365,7 +366,7 @@ services:
       fast_time_server:
         condition: service_started
     environment:
-      - JWT_SECRET_KEY=my-test-key
+      - JWT_SECRET_KEY=${SERVICE_HEX_128_GATEWAY}
     # This is a one-shot container that exits after registration
     restart: "no"
     entrypoint: ["/bin/sh", "-c"]
@@ -419,7 +420,7 @@ services:
 
         echo "Generating JWT token..."
         echo "Environment: JWT_SECRET_KEY=$$JWT_SECRET_KEY"
-        echo "Running: python3 -m mcpgateway.utils.create_jwt_token --username admin@example.com --exp 10080 --secret my-test-key --algo HS256"
+        echo "Running: python3 -m mcpgateway.utils.create_jwt_token --username admin@example.com --exp 10080 --secret my-test-key --algo HS512"
         # Only capture stdout (the token), let warnings go to stderr
         export MCPGATEWAY_BEARER_TOKEN=$$(python3 -m mcpgateway.utils.create_jwt_token --username admin@example.com --exp 10080 --secret my-test-key --algo HS256 2>/dev/null)
         echo "Generated token: $$MCPGATEWAY_BEARER_TOKEN"

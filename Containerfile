@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi10-minimal:10.0-1755721767
+FROM registry.access.redhat.com/ubi9-minimal:9.6-1758184547
 LABEL maintainer="Mihai Criveti" \
       name="mcp/mcpgateway" \
       version="0.8.0" \
