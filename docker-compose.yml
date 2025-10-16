@@ -24,7 +24,7 @@ services:
   # MCP Gateway - the main API server for the MCP stack
   # ──────────────────────────────────────────────────────────────────────
   gateway:
-    image: ${IMAGE_LOCAL:-mcpgateway/mcpgateway:latest} # Use the local latest image. Run `make docker-prod` to build it.
+    image: ghcr.io/melodeiro/mcpgateway:latest # Use the local latest image. Run `make docker-prod` to build it.
     #image: ghcr.io/ibm/mcp-context-forge:0.8.0 # Use the release MCP Context Forge image
     #image: ghcr.io/ibm/mcp-context-forge:0.7.0 # Testing migration from 0.7.0
     build:
@@ -358,7 +358,7 @@ services:
   # Auto-registration service - registers fast_time_server with gateway
   ###############################################################################
   register_fast_time:
-    image: ${IMAGE_LOCAL:-mcpgateway/mcpgateway:latest}
+    image: ghcr.io/melodeiro/mcpgateway:latest
     networks: [mcpnet]
     depends_on:
       gateway:
