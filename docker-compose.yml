@@ -65,7 +65,7 @@ services:
       - MCPGATEWAY_UI_ENABLED=true
       - MCPGATEWAY_ADMIN_API_ENABLED=true
       # Security configuration (using defaults)
-      - ENVIRONMENT=development
+      - ENVIRONMENT=${ENVIRONMENT:?development}
       - SECURITY_HEADERS_ENABLED=true
       - CORS_ALLOW_CREDENTIALS=true
       - SECURE_COOKIES=${SECURE_COOKIES:-true}
