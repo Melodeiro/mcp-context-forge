@@ -354,7 +354,7 @@ services:
   # Fast Time Server - High-performance time/timezone service for MCP
   ###############################################################################
   fast_time_server:
-    image: ghcr.io/ibm/fast-time-server:latest
+    image: ghcr.io/melodeiro/fast-time-server:latest
     restart: unless-stopped
     networks: [mcpnet]
     ports:
