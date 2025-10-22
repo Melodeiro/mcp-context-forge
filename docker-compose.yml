@@ -92,6 +92,11 @@ services:
       # - OTEL_TRACES_EXPORTER=${OTEL_TRACES_EXPORTER:-otlp}
       # - OTEL_METRICS_EXPORTER=${OTEL_METRICS_EXPORTER:-otlp}
       # - OTEL_RESOURCE_ATTRIBUTES=${OTEL_RESOURCE_ATTRIBUTES:-deployment.environment=docker,service.namespace=mcp}
+    labels:
+        - "caddy.servers.timeouts.read_body=300s"
+        - "caddy.servers.timeouts.read_header=300s"
+        - "caddy.servers.timeouts.write=300s"
+        - "caddy.servers.timeouts.idle=5m"
 
     depends_on:          # Default stack: Postgres + Redis + Alembic migration
       postgres:
